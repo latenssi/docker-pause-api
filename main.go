@@ -37,10 +37,12 @@ func getContainer(ctx context.Context, cli *client.Client, name string) (*types.
 }
 
 func statusHandler(w http.ResponseWriter, r *http.Request, cli *client.Client, container *types.Container) {
+	fmt.Println("GET /status")
 	json.NewEncoder(w).Encode(ContainerStatus{container.State})
 }
 
 func startHandler(w http.ResponseWriter, r *http.Request, cli *client.Client, container *types.Container) {
+	fmt.Println("POST /start")
 	if container.State == "paused" {
 		if err := cli.ContainerUnpause(r.Context(), container.ID); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -53,6 +55,7 @@ func startHandler(w http.ResponseWriter, r *http.Request, cli *client.Client, co
 }
 
 func stopHandler(w http.ResponseWriter, r *http.Request, cli *client.Client, container *types.Container) {
+	fmt.Println("POST /stop")
 	if container.State == "running" {
 		if err := cli.ContainerPause(r.Context(), container.ID); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -98,9 +101,24 @@ func main() {
 		panic(err)
 	}
 
+	fmt.Println("Starting docker-pause-api...")
+	fmt.Printf("Configured target container name: %s\n", environment.ContainerName)
+
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		panic(err)
+	}
+
+	cli.NegotiateAPIVersion(context.Background())
+
+	containers, err := cli.ContainerList(context.Background(), types.ContainerListOptions{All: true})
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Currently found containers:")
+	for _, c := range containers {
+		fmt.Printf("ID: %s, Names: %s\n", c.ID, c.Names)
 	}
 
 	http.HandleFunc("/status", makeHandler(statusHandler, http.MethodGet, cli, environment.ContainerName))
